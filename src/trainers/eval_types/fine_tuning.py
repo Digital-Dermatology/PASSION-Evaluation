@@ -100,7 +100,7 @@ class EvalFineTuning(BaseEvalType):
             try:
                 summary(classifier, input_size=(1, 3, 224, 224))
             except RuntimeError:
-                print(f"Summary can not be displayed for a Huggingface model.")
+                print("Summary can not be displayed for a Huggingface model.")
                 print(
                     f"Number of parameters backbone: {classifier.backbone.model.num_parameters():,}"
                 )
@@ -180,7 +180,7 @@ class EvalFineTuning(BaseEvalType):
 
             # training
             classifier.train()
-            for img, _, target in train_loader:
+            for img, target in train_loader:
                 img = img.to(device)
                 target = target.to(device)
 
@@ -211,7 +211,7 @@ class EvalFineTuning(BaseEvalType):
 
             # Validation
             classifier.eval()
-            for img, _, target in eval_loader:
+            for img, target in eval_loader:
                 # move batch to device
                 img = img.to(device)
                 target = target.to(device)
