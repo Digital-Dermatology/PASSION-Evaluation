@@ -285,9 +285,7 @@ core
 .vim
 report.xml
 notebooks/*.jpg
-assets/outputs
-assets/notebook_outputs
-assets/*.pickle
+assets/*
 *.dat
 notebooks/checkpoints
 notebooks/tmp_models

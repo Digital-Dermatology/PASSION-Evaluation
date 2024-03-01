@@ -22,3 +22,5 @@ SciencePlots
 scikit-image
 codecov
 randomname
+wandb
+torch-lr-finder

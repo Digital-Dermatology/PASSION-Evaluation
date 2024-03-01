@@ -1,0 +1,21 @@
+# global configs for experiments
+seed: 42
+log_wandb: True
+
+# data paths
+dataset: !include data_configs/local.yaml
+
+# these keys define the eval types
+fine_tuning:
+    n_folds: 5
+    # method specific parameters
+    learning_rate: 0.0001
+    find_optimal_lr: False
+    batch_size: 32
+    train_epochs: 100
+    warmup_epochs: 10
+    early_stopping_patience: 10
+    num_workers: 24
+    # head parameters
+    use_bn_in_head: True
+    dropout_in_head: 0.3

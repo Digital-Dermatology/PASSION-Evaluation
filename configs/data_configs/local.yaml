@@ -1,0 +1,3 @@
+passion:
+    path: "data/PASSION/PASSION_collection_2020_2023"
+    split_file: "PASSION_split.csv"
