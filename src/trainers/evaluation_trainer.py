@@ -172,7 +172,7 @@ class EvaluationTrainer(object):
             )
             fold_generator = k_fold.split(train_valid_range)
             for i_fold, (train_range, valid_range) in tqdm(
-                fold_generator,
+                enumerate(fold_generator),
                 total=config["n_folds"],
             ):
                 self._run_evaluation_on_range(
@@ -217,7 +217,7 @@ class EvaluationTrainer(object):
             emb_space=self.emb_space,
             labels=self.labels,
             train_range=train_range,
-            test_range=eval_range,
+            evaluation_range=eval_range,
             # only needed for fine-tuning
             dataset=self.dataset,
             model=self.model,

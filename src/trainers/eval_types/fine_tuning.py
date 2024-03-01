@@ -48,7 +48,7 @@ class EvalFineTuning(BaseEvalType):
     def evaluate(
         cls,
         train_range: np.ndarray,
-        test_range: np.ndarray,
+        evaluation_range: np.ndarray,
         dataset: torch.utils.data.Dataset,
         model: torch.nn.Module,
         model_out_dim: int,
@@ -69,7 +69,7 @@ class EvalFineTuning(BaseEvalType):
         train_loader, eval_loader = cls.get_train_eval_loaders(
             dataset=dataset,
             train_range=train_range,
-            test_range=test_range,
+            evaluation_range=evaluation_range,
             batch_size=batch_size,
             num_workers=num_workers,
         )
@@ -253,7 +253,7 @@ class EvalFineTuning(BaseEvalType):
         cls,
         dataset: torch.utils.data.Dataset,
         train_range: np.ndarray,
-        test_range: np.ndarray,
+        evaluation_range: np.ndarray,
         batch_size: int,
         num_workers: int,
     ):
@@ -274,7 +274,7 @@ class EvalFineTuning(BaseEvalType):
         eval_loader = DataLoader(
             eval_dataset,
             batch_size=batch_size,
-            sampler=SubsetRandomSampler(test_range),
+            sampler=SubsetRandomSampler(evaluation_range),
             num_workers=num_workers,
             drop_last=False,
             shuffle=False,
