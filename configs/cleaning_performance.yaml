@@ -8,6 +8,7 @@ dataset: !include data_configs/local.yaml
 # these keys define the eval types
 fine_tuning:
     n_folds: 5
+    eval_test_performance: False
     # method specific parameters
     learning_rate: 0.0001
     find_optimal_lr: False
