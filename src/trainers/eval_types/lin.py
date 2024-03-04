@@ -21,7 +21,7 @@ class EvalLin(BaseEvalType):
         tol: float = 0.1,
         max_iter: int = 100,
         **kwargs,
-    ) -> float:
+    ) -> dict:
         train, evaluation = cls.split_data(
             emb_space=emb_space,
             labels=labels,
@@ -39,12 +39,18 @@ class EvalLin(BaseEvalType):
             max_iter=max_iter,
         )
         lin.fit(X_train, y_train)
+        y_pred = lin.predict(X_eval)
+
         f1 = float(
             f1_score(
                 y_eval,
-                lin.predict(X_eval),
+                y_pred,
                 average="macro",
             )
             * 100
         )
-        return f1
+        return {
+            "score": f1,
+            "targets": y_eval,
+            "predictions": y_pred,
+        }

@@ -1,13 +1,14 @@
 import copy
 import pickle
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterator, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedGroupKFold
 from torchvision import transforms
 from tqdm import tqdm
 
@@ -26,7 +27,7 @@ eval_type_dict = {
 }
 
 
-class EvaluationTrainer(object):
+class EvaluationTrainer(ABC, object):
     def __init__(
         self,
         dataset_name: DatasetName,
@@ -38,28 +39,30 @@ class EvaluationTrainer(object):
         n_layers: int = 1,
         append_to_df: bool = False,
         initialize: bool = True,
+        wandb_project_name: str = "PASSION-Evaluation",
         log_wandb: bool = False,
         debug: bool = False,
     ):
-        # configurations
         self.dataset_name = dataset_name
         self.config = config
         self.output_path = Path(output_path)
         self.cache_path = Path(cache_path)
         self.initialize = initialize
         self.append_to_df = append_to_df
+        self.wandb_project_name = wandb_project_name
         self.log_wandb = log_wandb
         self.debug = debug
-
         self.seed = config["seed"]
         fix_random_seeds(self.seed)
 
-        self.df_name = f"passion_exp_{self.dataset_name.value}.csv"
+        self.df_name = f"passion_{self.experiment_name}_{self.dataset_name.value}.csv"
         self.df_path = self.output_path / self.df_name
+        self.model_path = self.output_path / self.experiment_name
 
         # make sure the output and cache path exist
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.cache_path.mkdir(parents=True, exist_ok=True)
+        self.model_path.mkdir(parents=True, exist_ok=True)
 
         # parse the config to get the eval types
         self.eval_types = []
@@ -68,7 +71,17 @@ class EvaluationTrainer(object):
                 self.eval_types.append((eval_type_dict.get(k), v))
 
         # save the results to the dataframe
-        self.df = pd.DataFrame([], columns=["Score", "Seed", "EvalType"])
+        self.df = pd.DataFrame(
+            [],
+            columns=[
+                "Score",
+                "EvalTargets",
+                "EvalPredictions",
+                "EvalType",
+                "AdditionalRunInfo",
+                "SplitName",
+            ],
+        )
         if append_to_df:
             if not self.df_path.exists():
                 print(f"Results for dataset: {self.dataset_name.value} not available.")
@@ -100,7 +113,7 @@ class EvaluationTrainer(object):
         self.dataset, self.torch_dataset = get_dataset(
             dataset_name=dataset_name,
             dataset_path=Path(data_path),
-            batch_size=128,
+            batch_size=config.get("batch_size", 128),
             transform=self.transform,
             **data_config[dataset_name.value],
         )
@@ -130,6 +143,15 @@ class EvaluationTrainer(object):
             with open(cache_file, "wb") as handle:
                 pickle.dump(save_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
+    @property
+    @abstractmethod
+    def experiment_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
+        pass
+
     def load_model(self, SSL_model: str, ckp_path: Optional[str] = None):
         if ckp_path is not None:
             model, info, _ = Embedder.load_dino(
@@ -158,39 +180,49 @@ class EvaluationTrainer(object):
         self.dataset.return_path = False
 
         for e_type, config in self.eval_types:
-            train_valid_range = self.dataset.meta_data[
-                self.dataset.meta_data["Split"] == "TRAIN"
-            ].index.values
-            test_range = self.dataset.meta_data[
-                self.dataset.meta_data["Split"] == "TEST"
-            ].index.values
-
-            k_fold = KFold(
-                n_splits=config["n_folds"],
-                random_state=self.seed,
-                shuffle=True,
-            )
-            fold_generator = k_fold.split(train_valid_range)
-            for i_fold, (train_range, valid_range) in tqdm(
-                enumerate(fold_generator),
-                total=config["n_folds"],
-            ):
-                self._run_evaluation_on_range(
-                    e_type=e_type,
-                    train_range=train_range,
-                    eval_range=valid_range,
-                    config=config,
-                    add_run_info=f"Fold-{i_fold}",
-                )
-
-            if config["eval_test_performance"]:
-                self._run_evaluation_on_range(
-                    e_type=e_type,
-                    train_range=train_valid_range,
-                    eval_range=test_range,
-                    config=config,
-                    add_run_info="Test",
-                )
+            for (
+                train_valid_range,
+                test_range,
+                split_name,
+            ) in self.split_dataframe_iterator():
+                if config.get("n_folds", None) is not None:
+                    k_fold = StratifiedGroupKFold(
+                        n_splits=config["n_folds"],
+                        random_state=self.seed,
+                        shuffle=True,
+                    )
+                    labels = self.dataset.meta_data.loc[
+                        train_valid_range, self.dataset.LBL_COL
+                    ].values
+                    groups = self.dataset.meta_data.loc[
+                        train_valid_range, "subject_id"
+                    ].values
+                    fold_generator = k_fold.split(train_valid_range, labels, groups)
+                    for i_fold, (train_range, valid_range) in tqdm(
+                        enumerate(fold_generator),
+                        total=config["n_folds"],
+                        desc="K-Folds",
+                    ):
+                        self._run_evaluation_on_range(
+                            e_type=e_type,
+                            train_range=train_range,
+                            eval_range=valid_range,
+                            config=config,
+                            add_run_info=f"Fold-{i_fold}",
+                            split_name=split_name,
+                            saved_model_path=None,
+                        )
+                if config["eval_test_performance"]:
+                    # TODO: Non-informed baselines?
+                    self._run_evaluation_on_range(
+                        e_type=e_type,
+                        train_range=train_valid_range,
+                        eval_range=test_range,
+                        config=config,
+                        add_run_info="Test",
+                        split_name=split_name,
+                        saved_model_path=self.model_path,
+                    )
 
     def _run_evaluation_on_range(
         self,
@@ -199,21 +231,25 @@ class EvaluationTrainer(object):
         eval_range: np.ndarray,
         config: dict,
         add_run_info: Optional[str] = None,
+        split_name: Optional[str] = None,
+        saved_model_path: Union[Path, str, None] = None,
     ):
         # W&B configurations
         if e_type is EvalFineTuning and self.log_wandb:
+            _config = copy.deepcopy(self.config)
+            if split_name is not None:
+                _config["split_name"] = split_name
             wandb.init(
-                config=self.config,
-                project="PASSION-Evaluation",
+                config=_config,
+                project=self.wandb_project_name,
             )
-            wandb_run_name = f"{self.dataset_name.value}-{wandb.run.name}"
+            wandb_run_name = f"{self.experiment_name}-{wandb.run.name}"
             if add_run_info is not None:
                 wandb_run_name += f"-{add_run_info}"
             wandb.run.name = wandb_run_name
             wandb.run.save()
-
         # get train / test set
-        score = e_type.evaluate(
+        score_dict = e_type.evaluate(
             emb_space=self.emb_space,
             labels=self.labels,
             train_range=train_range,
@@ -223,17 +259,17 @@ class EvaluationTrainer(object):
             model=self.model,
             model_out_dim=self.model_out_dim,
             log_wandb=self.log_wandb,
+            saved_model_path=saved_model_path,
             # rest of the method specific parameters set with kwargs
             **config,
         )
         # finish the W&B run if needed
         if e_type is EvalFineTuning and self.log_wandb:
             wandb.finish()
-        # save the results to the overall dataframe
-        self.df.loc[len(self.df)] = [
-            score,
+        # save the results to the overall dataframe + save df
+        self.df.loc[len(self.df)] = list(score_dict.values()) + [
+            split_name,
             add_run_info,
             e_type.name(),
         ]
-        # save the dataframe (will work even bug in latter datasets)
         self.df.to_csv(self.df_path, index=False)

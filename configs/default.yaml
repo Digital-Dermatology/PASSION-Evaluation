@@ -1,22 +1,27 @@
 # global configs for experiments
+batch_size: &batch_size 64
 seed: 42
 log_wandb: True
 
 # data paths
-dataset: !include data_configs/local.yaml
+dataset:
+    passion:
+        path: "data/PASSION/PASSION_collection_2020_2023"
+        split_file: "PASSION_split.csv"
 
 # these keys define the eval types
 fine_tuning:
     n_folds: 5
-    eval_test_performance: False
+    eval_test_performance: True
     # method specific parameters
+    train_epochs: 100
+    batch_size: *batch_size
     learning_rate: 0.0001
     find_optimal_lr: False
-    batch_size: 32
-    train_epochs: 100
+    use_lr_scheduler: False
     warmup_epochs: 10
     early_stopping_patience: 10
     num_workers: 24
     # head parameters
     use_bn_in_head: True
-    dropout_in_head: 0.3
+    dropout_in_head: 0.4

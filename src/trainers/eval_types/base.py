@@ -32,5 +32,5 @@ class BaseEvalType(ABC):
         train_range: np.ndarray,
         evaluation_range: np.ndarray,
         **kwargs,
-    ) -> float:
+    ) -> dict:
         raise NotImplementedError

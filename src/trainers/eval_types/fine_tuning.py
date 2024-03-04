@@ -1,6 +1,9 @@
 import copy
 from collections import OrderedDict
+from pathlib import Path
+from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchmetrics
@@ -10,11 +13,18 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torch_lr_finder import LRFinder
 from torchinfo import summary
 from torchvision import transforms
+from torchvision.transforms import InterpolationMode
+from tqdm import tqdm
 
 from src.trainers.eval_types.base import BaseEvalType
 from ssl_library.src.models.fine_tuning.classifiers import LinearClassifier
 from ssl_library.src.optimizers.utils import get_optimizer_type
-from ssl_library.src.utils.utils import EarlyStopping, set_requires_grad
+from ssl_library.src.utils.utils import (
+    EarlyStopping,
+    restart_from_checkpoint,
+    save_checkpoint,
+    set_requires_grad,
+)
 
 
 class EvalFineTuning(BaseEvalType):
@@ -33,7 +43,7 @@ class EvalFineTuning(BaseEvalType):
     )
     val_transform = transforms.Compose(
         [
-            transforms.Resize(224, interpolation=3),
+            transforms.Resize(256, interpolation=InterpolationMode.BICUBIC),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
@@ -60,11 +70,14 @@ class EvalFineTuning(BaseEvalType):
         use_bn_in_head: bool,
         dropout_in_head: float,
         num_workers: int,
+        saved_model_path: Union[Path, str, None] = None,
         find_optimal_lr: bool = False,
+        use_lr_scheduler: bool = False,
         log_wandb: bool = False,
         debug: bool = False,
         **kwargs,
-    ) -> float:
+    ) -> dict:
+        model = copy.deepcopy(model)
         # get dataloader for batched compute
         train_loader, eval_loader = cls.get_train_eval_loaders(
             dataset=dataset,
@@ -122,6 +135,10 @@ class EvalFineTuning(BaseEvalType):
             lr_finder.range_test(train_loader, end_lr=100, num_iter=100)
             lrs = lr_finder.history["lr"]
             losses = lr_finder.history["loss"]
+            # log the LRFinder plot
+            fig, ax = plt.subplots()
+            lr_finder.plot(ax=ax)
+            wandb.log({"LRFinder_Plot": fig})
             # to reset the model and optimizer to their initial state
             lr_finder.reset()
             try:
@@ -140,36 +157,83 @@ class EvalFineTuning(BaseEvalType):
             log_messages=debug,
         )
 
-        # define the learning rate scheduler
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer=optimizer,
-            T_max=train_epochs,
-            eta_min=0,
-        )
+        if use_lr_scheduler:
+            # define the learning rate scheduler
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                optimizer=optimizer,
+                T_max=train_epochs,
+                eta_min=0,
+            )
+
+        # load the model from checkpoint if provided
+        to_restore = {"epoch": 0}
+        if saved_model_path is not None:
+            restart_from_checkpoint(
+                Path(saved_model_path) / "model_best.pth",
+                run_variables=to_restore,
+                classifier=classifier,
+                optimizer=optimizer,
+                loss=criterion,
+            )
+        start_epoch = to_restore["epoch"]
 
         # define metrics
-        loss_metric_train = torchmetrics.MeanMetric()
-        loss_metric_train = loss_metric_train.to(device)
+        loss_metric_train = torchmetrics.MeanMetric().to(device)
         f1_score_train = torchmetrics.F1Score(
             task="multiclass",
             num_classes=classifier.fc.num_labels,
             average="macro",
-        )
-        f1_score_train = f1_score_train.to(device)
+        ).to(device)
 
-        loss_metric_val = torchmetrics.MeanMetric()
-        loss_metric_val = loss_metric_val.to(device)
+        loss_metric_val = torchmetrics.MeanMetric().to(device)
         f1_score_val = torchmetrics.F1Score(
             task="multiclass",
             num_classes=classifier.fc.num_labels,
             average="macro",
-        )
-        f1_score_val = f1_score_val.to(device)
+        ).to(device)
+        precision_val = torchmetrics.Precision(
+            task="multiclass",
+            num_classes=classifier.fc.num_labels,
+            average="macro",
+        ).to(device)
+        recall_val = torchmetrics.Recall(
+            task="multiclass",
+            num_classes=classifier.fc.num_labels,
+            average="macro",
+        ).to(device)
+        auroc_val = torchmetrics.AUROC(
+            task="multiclass",
+            num_classes=classifier.fc.num_labels,
+        ).to(device)
 
         # start training
-        step = 0
-        l_f1_val = []
-        for epoch in range(train_epochs):
+        epoch, step = start_epoch, 0
+        eval_scores_dict = {
+            "f1": {
+                "metric": f1_score_val,
+                "scores": [],
+            },
+            "precision": {
+                "metric": precision_val,
+                "scores": [],
+            },
+            "recall": {
+                "metric": recall_val,
+                "scores": [],
+            },
+            "auroc": {
+                "metric": auroc_val,
+                "scores": [],
+            },
+        }
+        l_loss_val = []
+        best_val_loss = np.inf
+        best_model_wts = copy.deepcopy(classifier.state_dict())
+        for epoch in tqdm(
+            range(epoch, train_epochs),
+            total=train_epochs,
+            desc="Model Training",
+        ):
             if epoch >= warmup_epochs:
                 # make sure the classifier and backbone get trained
                 set_requires_grad(classifier, True)
@@ -191,7 +255,8 @@ class EvalFineTuning(BaseEvalType):
 
                 loss.backward()
                 optimizer.step()
-                scheduler.step()
+                if use_lr_scheduler:
+                    scheduler.step()
 
                 # W&B logging if needed
                 if log_wandb:
@@ -209,44 +274,85 @@ class EvalFineTuning(BaseEvalType):
                 f1_score_train.update(pred, target)
                 step += 1
 
-            # Validation
+            # Evaluation
             classifier.eval()
             for img, target in eval_loader:
-                # move batch to device
                 img = img.to(device)
                 target = target.to(device)
-
                 with torch.no_grad():
                     pred = classifier(img)
                     loss = criterion(pred, target)
-                # add to overall metrics
                 loss_metric_val.update(loss)
-                f1_score_val.update(pred, target)
-            l_f1_val.append(f1_score_val.compute())
-            if debug:
-                print(
-                    f"Epoch: {epoch}, "
-                    f"Train Loss: {loss_metric_train.compute()}, "
-                    f"Train F1: {f1_score_train.compute()}, "
-                    f"Valid Loss: {loss_metric_val.compute()}, "
-                    f"Valid F1: {f1_score_val.compute()}"
-                )
+                for _score_dict in eval_scores_dict.values():
+                    _score_dict["metric"].update(pred, target)
+            l_loss_val.append(loss_metric_val.compute())
+            for _score_dict in eval_scores_dict.values():
+                _score_dict["scores"].append(_score_dict["metric"].compute())
+            # check if we have new best model
+            if l_loss_val[-1] < best_val_loss:
+                best_val_loss = l_loss_val[-1]
+                best_model_wts = copy.deepcopy(classifier.state_dict())
             # check early stopping
             early_stopping(loss_metric_val.compute())
             if early_stopping.early_stop:
                 if debug:
-                    print("EarlyStopping, validation did not decrease.")
+                    print("EarlyStopping, evaluation did not decrease.")
                 break
             # W&B logging if needed
             if log_wandb:
                 log_dict = {
-                    "valid_loss": loss_metric_val.compute(),
-                    "valid_f1": l_f1_val[-1],
+                    "eval_loss": loss_metric_val.compute(),
                     "epoch": epoch,
                     "step": step,
                 }
+                for score_name, _score_dict in eval_scores_dict.items():
+                    log_dict[f"eval_{score_name}"] = _score_dict["scores"][-1]
                 wandb.log(log_dict)
-        return float(torch.Tensor(l_f1_val).max() * 100)
+
+        # get the best epoch in terms of F1 score
+        best_epoch = torch.Tensor(eval_scores_dict["f1"]["scores"]).argmax()
+        if log_wandb:
+            log_dict = {
+                "best_eval_epoch": best_epoch,
+                "best_eval_loss": l_loss_val[best_epoch],
+                "epoch": epoch,
+                "step": step,
+            }
+            for score_name, _score_dict in eval_scores_dict.items():
+                log_dict[f"best_eval_{score_name}"] = _score_dict["scores"][best_epoch]
+            wandb.log(log_dict)
+        classifier.load_state_dict(best_model_wts)
+        if saved_model_path is not None:
+            save_dict = {
+                "arch": type(classifier).__name__,
+                "epoch": epoch,
+                "classifier": classifier,
+                "optimizer": optimizer.state_dict(),
+                "loss": criterion.state_dict(),
+            }
+            save_checkpoint(
+                run_dir=saved_model_path,
+                save_dict=save_dict,
+                epoch=epoch,
+                save_best=True,
+            )
+        # create eval predictions for saving
+        targets, predictions = [], []
+        classifier.eval()
+        for img, target in eval_loader:
+            img = img.to(device)
+            target = target.to(device)
+            with torch.no_grad():
+                pred = classifier(img)
+            targets.append(target.cpu())
+            predictions.append(pred.cpu())
+        targets = torch.concat(targets).cpu().numpy()
+        predictions = torch.concat(predictions).cpu().numpy()
+        return {
+            "score": float(eval_scores_dict["f1"]["scores"][best_epoch] * 100),
+            "targets": targets,
+            "predictions": predictions,
+        }
 
     @classmethod
     def get_train_eval_loaders(

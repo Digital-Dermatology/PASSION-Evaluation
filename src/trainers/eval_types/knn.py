@@ -19,7 +19,7 @@ class EvalKNN(BaseEvalType):
         evaluation_range: np.ndarray,
         k: int = 10,
         **kwargs,
-    ) -> float:
+    ) -> dict:
         train, evaluation = cls.split_data(
             emb_space=emb_space,
             labels=labels,
@@ -35,12 +35,18 @@ class EvalKNN(BaseEvalType):
             metric="cosine",
         )
         knn.fit(X_train, y_train)
+        y_pred = knn.predict(X_eval)
+
         f1 = float(
             f1_score(
                 y_eval,
-                knn.predict(X_eval),
+                y_pred,
                 average="macro",
             )
             * 100
         )
-        return f1
+        return {
+            "score": f1,
+            "targets": y_eval,
+            "predictions": y_pred,
+        }
