@@ -38,7 +38,6 @@ class EvaluationTrainer(ABC, object):
         cache_path: Union[Path, str] = "assets/evaluation/cache",
         n_layers: int = 1,
         append_to_df: bool = False,
-        initialize: bool = True,
         wandb_project_name: str = "PASSION-Evaluation",
         log_wandb: bool = False,
         debug: bool = False,
@@ -47,7 +46,6 @@ class EvaluationTrainer(ABC, object):
         self.config = config
         self.output_path = Path(output_path)
         self.cache_path = Path(cache_path)
-        self.initialize = initialize
         self.append_to_df = append_to_df
         self.wandb_project_name = wandb_project_name
         self.log_wandb = log_wandb
@@ -88,10 +86,6 @@ class EvaluationTrainer(ABC, object):
             else:
                 print(f"Appending results to: {self.df_path}")
                 self.df = pd.read_csv(self.df_path)
-
-        # only used when purely plotting saved results
-        if not self.initialize:
-            return
 
         # load the correct model to use as initialization
         self.model, self.model_out_dim = self.load_model(

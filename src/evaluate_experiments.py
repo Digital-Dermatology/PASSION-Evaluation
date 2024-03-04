@@ -40,11 +40,6 @@ my_parser.add_argument(
     help="If the experiment 4, i.e. generalization age groups, should be run.",
 )
 my_parser.add_argument(
-    "--print_results_only",
-    action="store_true",
-    help="If the results should only be printed and no training is performed.",
-)
-my_parser.add_argument(
     "--append_results",
     action="store_true",
     help="If the results should be appended to the existing df (needs to be used with care!)",
@@ -66,14 +61,10 @@ if __name__ == "__main__":
             config=config,
             SSL_model="imagenet",
             append_to_df=args.append_results,
-            initialize=False if args.print_results_only else True,
             log_wandb=log_wandb,
             add_info="conditions",
         )
-        if not args.print_results_only:
-            trainer.evaluate()
-        # TODO: Add result printing again
-        # trainer.print_results()
+        trainer.evaluate()
 
     if args.exp2:
         _config = copy.deepcopy(config)
@@ -83,14 +74,10 @@ if __name__ == "__main__":
             config=_config,
             SSL_model="imagenet",
             append_to_df=args.append_results,
-            initialize=False if args.print_results_only else True,
             log_wandb=log_wandb,
             add_info="impetigo",
         )
-        if not args.print_results_only:
-            trainer.evaluate()
-        # TODO: Add result printing again
-        # trainer.print_results()
+        trainer.evaluate()
 
     if args.exp3:
         trainer = ExperimentCenterGeneralization(
@@ -98,13 +85,9 @@ if __name__ == "__main__":
             config=config,
             SSL_model="imagenet",
             append_to_df=args.append_results,
-            initialize=False if args.print_results_only else True,
             log_wandb=log_wandb,
         )
-        if not args.print_results_only:
-            trainer.evaluate()
-        # TODO: Add result printing again
-        # trainer.print_results()
+        trainer.evaluate()
 
     if args.exp4:
         trainer = ExperimentAgeGroupGeneralization(
@@ -112,10 +95,6 @@ if __name__ == "__main__":
             config=config,
             SSL_model="imagenet",
             append_to_df=args.append_results,
-            initialize=False if args.print_results_only else True,
             log_wandb=log_wandb,
         )
-        if not args.print_results_only:
-            trainer.evaluate()
-        # TODO: Add result printing again
-        # trainer.print_results()
+        trainer.evaluate()
