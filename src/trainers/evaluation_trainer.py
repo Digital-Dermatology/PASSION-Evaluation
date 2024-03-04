@@ -118,7 +118,9 @@ class EvaluationTrainer(ABC, object):
             **data_config[dataset_name.value],
         )
         # check if the cache contains the embeddings already
-        cache_file = self.cache_path / f"{dataset_name.value}.pickle"
+        cache_file = (
+            self.cache_path / f"{dataset_name.value}_{self.experiment_name}.pickle"
+        )
         if cache_file.exists():
             print(f"Found cached file loading: {cache_file}")
             with open(cache_file, "rb") as file:

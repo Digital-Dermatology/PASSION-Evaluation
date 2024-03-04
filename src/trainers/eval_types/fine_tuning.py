@@ -310,6 +310,7 @@ class EvalFineTuning(BaseEvalType):
                 wandb.log(log_dict)
 
         # get the best epoch in terms of F1 score
+        wandb.unwatch()
         best_epoch = torch.Tensor(eval_scores_dict["f1"]["scores"]).argmax()
         if log_wandb:
             log_dict = {
