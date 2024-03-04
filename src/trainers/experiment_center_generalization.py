@@ -56,6 +56,6 @@ class ExperimentCenterGeneralization(EvaluationTrainer):
             ].index.values
             test_range = self.dataset.meta_data[
                 self.dataset.meta_data["country"].isin(split_dict["test"])
-            ]
+            ].index.values
             split_name = f"TRAIN: {'_'.join(split_dict['train'])}, TEST: {'_'.join(split_dict['test'])}"
             yield train_valid_range, test_range, split_name
