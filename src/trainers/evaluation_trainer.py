@@ -40,7 +40,6 @@ class EvaluationTrainer(ABC, object):
         append_to_df: bool = False,
         wandb_project_name: str = "PASSION-Evaluation",
         log_wandb: bool = False,
-        debug: bool = False,
     ):
         self.dataset_name = dataset_name
         self.config = config
@@ -49,11 +48,10 @@ class EvaluationTrainer(ABC, object):
         self.append_to_df = append_to_df
         self.wandb_project_name = wandb_project_name
         self.log_wandb = log_wandb
-        self.debug = debug
         self.seed = config["seed"]
         fix_random_seeds(self.seed)
 
-        self.df_name = f"passion_{self.experiment_name}_{self.dataset_name.value}.csv"
+        self.df_name = f"{self.experiment_name}_{self.dataset_name.value}.csv"
         self.df_path = self.output_path / self.df_name
         self.model_path = self.output_path / self.experiment_name
 

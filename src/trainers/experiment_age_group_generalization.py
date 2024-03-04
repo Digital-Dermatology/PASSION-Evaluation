@@ -20,7 +20,6 @@ class ExperimentAgeGroupGeneralization(EvaluationTrainer):
         append_to_df: bool = False,
         wandb_project_name: str = "PASSION-Evaluation",
         log_wandb: bool = False,
-        debug: bool = False,
     ):
         super().__init__(
             dataset_name=dataset_name,
@@ -33,12 +32,11 @@ class ExperimentAgeGroupGeneralization(EvaluationTrainer):
             append_to_df=append_to_df,
             wandb_project_name=wandb_project_name,
             log_wandb=log_wandb,
-            debug=debug,
         )
 
     @property
     def experiment_name(self) -> str:
-        return "experiment_3"
+        return "experiment_age"
 
     def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
         pediatric_indices = self.dataset.meta_data[

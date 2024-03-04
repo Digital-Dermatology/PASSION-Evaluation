@@ -16,12 +16,13 @@ fine_tuning:
     # method specific parameters
     train_epochs: 100
     batch_size: *batch_size
-    learning_rate: 0.0001
-    find_optimal_lr: False
+    learning_rate: 0.00001
+    find_optimal_lr: True
     use_lr_scheduler: False
     warmup_epochs: 10
-    early_stopping_patience: 10
+    early_stopping_patience: 20
     num_workers: 24
+    debug: True
     # head parameters
     use_bn_in_head: True
     dropout_in_head: 0.4

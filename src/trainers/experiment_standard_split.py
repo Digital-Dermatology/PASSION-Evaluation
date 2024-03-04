@@ -20,7 +20,6 @@ class ExperimentStandardSplit(EvaluationTrainer):
         append_to_df: bool = False,
         wandb_project_name: str = "PASSION-Evaluation",
         log_wandb: bool = False,
-        debug: bool = False,
         add_info: Optional[str] = None,
     ):
         self.add_info = add_info
@@ -35,15 +34,14 @@ class ExperimentStandardSplit(EvaluationTrainer):
             append_to_df=append_to_df,
             wandb_project_name=wandb_project_name,
             log_wandb=log_wandb,
-            debug=debug,
         )
 
     @property
     def experiment_name(self) -> str:
         if self.add_info is not None:
-            return f"experiment_1_{self.add_info}"
+            return f"experiment_standard_split_{self.add_info}"
         else:
-            return "experiment_1"
+            return "experiment_standard_split"
 
     def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
         train_valid_range = self.dataset.meta_data[

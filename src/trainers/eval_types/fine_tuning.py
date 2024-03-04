@@ -138,7 +138,7 @@ class EvalFineTuning(BaseEvalType):
             # log the LRFinder plot
             fig, ax = plt.subplots()
             lr_finder.plot(ax=ax)
-            wandb.log({"LRFinder_Plot": fig})
+            wandb.log({"LRFinder_Plot": wandb.Image(fig)})
             # to reset the model and optimizer to their initial state
             lr_finder.reset()
             try:
@@ -167,14 +167,16 @@ class EvalFineTuning(BaseEvalType):
 
         # load the model from checkpoint if provided
         to_restore = {"epoch": 0}
-        if saved_model_path is not None:
-            restart_from_checkpoint(
-                Path(saved_model_path) / "model_best.pth",
-                run_variables=to_restore,
-                classifier=classifier,
-                optimizer=optimizer,
-                loss=criterion,
-            )
+        # TODO: fix this here
+        if False:
+            if saved_model_path is not None:
+                restart_from_checkpoint(
+                    Path(saved_model_path) / "checkpoints" / "model_best.pth",
+                    run_variables=to_restore,
+                    classifier=classifier,
+                    optimizer=optimizer,
+                    loss=criterion,
+                )
         start_epoch = to_restore["epoch"]
 
         # define metrics
@@ -262,6 +264,7 @@ class EvalFineTuning(BaseEvalType):
                 if log_wandb:
                     log_dict = {
                         "train_loss": loss.item(),
+                        # TODO: check if this needs a LogSoftmax
                         "train_f1": f1_score_train(pred, target),
                         "learning_rate": optimizer.param_groups[0]["lr"],
                         "weight_decay": optimizer.param_groups[0]["weight_decay"],
@@ -283,6 +286,7 @@ class EvalFineTuning(BaseEvalType):
                     pred = classifier(img)
                     loss = criterion(pred, target)
                 loss_metric_val.update(loss)
+                # TODO: check if this needs a LogSoftmax
                 for _score_dict in eval_scores_dict.values():
                     _score_dict["metric"].update(pred, target)
             l_loss_val.append(loss_metric_val.compute())
@@ -345,7 +349,9 @@ class EvalFineTuning(BaseEvalType):
             target = target.to(device)
             with torch.no_grad():
                 pred = classifier(img)
-            targets.append(target.cpu())
+            # TODO: LogSoftmax or only Softmax?
+            # pred = nn.LogSoftmax(dim=1)(pred)
+            targets.append(target.cpu().argmax(dim=-1))
             predictions.append(pred.cpu())
         targets = torch.concat(targets).cpu().numpy()
         predictions = torch.concat(predictions).cpu().numpy()
