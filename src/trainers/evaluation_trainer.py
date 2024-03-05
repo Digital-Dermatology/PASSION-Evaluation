@@ -216,7 +216,6 @@ class EvaluationTrainer(ABC, object):
                             saved_model_path=None,
                         )
                 if config["eval_test_performance"]:
-                    # TODO: Non-informed baselines?
                     self._run_evaluation_on_range(
                         e_type=e_type,
                         train_range=train_valid_range,
@@ -225,6 +224,7 @@ class EvaluationTrainer(ABC, object):
                         add_run_info="Test",
                         split_name=split_name,
                         saved_model_path=self.model_path,
+                        detailed_evaluation=True,
                     )
 
     def _run_evaluation_on_range(
@@ -236,6 +236,7 @@ class EvaluationTrainer(ABC, object):
         add_run_info: Optional[str] = None,
         split_name: Optional[str] = None,
         saved_model_path: Union[Path, str, None] = None,
+        detailed_evaluation: bool = False,
     ):
         # W&B configurations
         if e_type is EvalFineTuning and self.log_wandb:
@@ -266,37 +267,58 @@ class EvaluationTrainer(ABC, object):
             # rest of the method specific parameters set with kwargs
             **config,
         )
-        print("*" * 20 + f" {e_type.name()} " + "*" * 20)
-        print(
-            classification_report(
-                score_dict["targets"],
-                score_dict["predictions"],
-                target_names=self.dataset.classes,
-            )
-        )
-
-        eval_df = self.dataset.meta_data.iloc[eval_range].copy()
-        eval_df.reset_index(drop=True, inplace=True)
-        fst_types = eval_df["fitzpatrick"].unique()
-        for fst in fst_types:
-            _df = eval_df[eval_df["fitzpatrick"] == fst]
-            print("~" * 20 + f" Fitzpatrick: {fst} " + "~" * 20)
+        if detailed_evaluation:
+            # Detailed evaluation
+            print("*" * 20 + f" {e_type.name()} " + "*" * 20)
             print(
                 classification_report(
-                    score_dict["targets"][_df.index.values],
-                    score_dict["predictions"][_df.index.values],
+                    score_dict["targets"],
+                    score_dict["predictions"],
                     target_names=self.dataset.classes,
                 )
             )
-
-        gender_types = eval_df["sex"].unique()
-        for gender in gender_types:
-            _df = eval_df[eval_df["sex"] == gender]
-            print("~" * 20 + f" Gender: {gender} " + "~" * 20)
+            # Detailed evaluation per demographic
+            eval_df = self.dataset.meta_data.iloc[eval_range].copy()
+            eval_df.reset_index(drop=True, inplace=True)
+            eval_df["targets"] = score_dict["targets"]
+            eval_df["predictions"] = score_dict["predictions"]
+            fst_types = eval_df["fitzpatrick"].unique()
+            for fst in fst_types:
+                _df = eval_df[eval_df["fitzpatrick"] == fst]
+                print("~" * 20 + f" Fitzpatrick: {fst} " + "~" * 20)
+                print(
+                    classification_report(
+                        score_dict["targets"][_df.index.values],
+                        score_dict["predictions"][_df.index.values],
+                        target_names=self.dataset.classes,
+                    )
+                )
+            gender_types = eval_df["sex"].unique()
+            for gender in gender_types:
+                _df = eval_df[eval_df["sex"] == gender]
+                print("~" * 20 + f" Gender: {gender} " + "~" * 20)
+                print(
+                    classification_report(
+                        score_dict["targets"][_df.index.values],
+                        score_dict["predictions"][_df.index.values],
+                        target_names=self.dataset.classes,
+                    )
+                )
+            # Aggregate predictions per sample
+            eval_df = eval_df.groupby("subject_id").agg(
+                {"targets": list, "predictions": list}
+            )
+            case_targets = (
+                eval_df["targets"].apply(lambda x: max(set(x), key=x.count)).values
+            )
+            case_predictions = (
+                eval_df["predictions"].apply(lambda x: max(set(x), key=x.count)).values
+            )
+            print("*" * 20 + f" {e_type.name()} -> Case Agg. " + "*" * 20)
             print(
                 classification_report(
-                    score_dict["targets"][_df.index.values],
-                    score_dict["predictions"][_df.index.values],
+                    case_targets,
+                    case_predictions,
                     target_names=self.dataset.classes,
                 )
             )

@@ -40,18 +40,28 @@ class ExperimentCenterGeneralization(EvaluationTrainer):
         return "experiment_center"
 
     def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
+        test_range = self.dataset.meta_data[
+            self.dataset.meta_data["Split"] == "TEST"
+        ].index.values
+
         l_countries = set(self.dataset.meta_data["country"].unique())
         data_combinations = [
             {"train": list(x), "test": list(set(x) ^ l_countries)}
             for x in list(combinations(l_countries, 2))
         ]
-
         for split_dict in data_combinations:
             train_valid_range = self.dataset.meta_data[
-                self.dataset.meta_data["country"].isin(split_dict["train"])
+                (self.dataset.meta_data["Split"] == "TRAIN")
+                & (self.dataset.meta_data["country"].isin(split_dict["train"]))
             ].index.values
-            test_range = self.dataset.meta_data[
-                self.dataset.meta_data["country"].isin(split_dict["test"])
-            ].index.values
-            split_name = f"TRAIN: {'_'.join(split_dict['train'])}, TEST: {'_'.join(split_dict['test'])}"
+            train_valid_resampled_range = (
+                self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
+                .sample(n=len(train_valid_range))
+                .index.values
+            )
+
+            split_name = f"TRAIN: {'_'.join(split_dict['train'])}, TEST: Standard"
             yield train_valid_range, test_range, split_name
+
+            split_name = f"TRAIN: Standard (resampled: {'_'.join(split_dict['train'])}), TEST: Standard"
+            yield train_valid_resampled_range, test_range, split_name

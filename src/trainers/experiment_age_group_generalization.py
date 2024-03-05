@@ -39,11 +39,32 @@ class ExperimentAgeGroupGeneralization(EvaluationTrainer):
         return "experiment_age"
 
     def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
-        pediatric_indices = self.dataset.meta_data[
-            self.dataset.meta_data["age"] <= 16
+        train_valid_pediatric_range = self.dataset.meta_data[
+            (self.dataset.meta_data["Split"] == "TRAIN")
+            & (self.dataset.meta_data["age"] <= 16)
         ].index.values
-        adolescent_indices = self.dataset.meta_data[
-            self.dataset.meta_data["age"] > 16
+        train_valid_full_pediatric_range = (
+            self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
+            .sample(n=len(train_valid_pediatric_range))
+            .index.values
+        )
+
+        train_valid_adolescent_range = self.dataset.meta_data[
+            (self.dataset.meta_data["Split"] == "TRAIN")
+            & (self.dataset.meta_data["age"] > 16)
         ].index.values
-        yield pediatric_indices, adolescent_indices, "TRAIN: Pediatric(<=16), TEST: Adolescent (>16)"
-        yield adolescent_indices, pediatric_indices, "TRAIN: Adolescent (>16), TEST: Pediatric(<=16)"
+        train_valid_full_adolescent_range = (
+            self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
+            .sample(n=len(train_valid_adolescent_range))
+            .index.values
+        )
+
+        test_range = self.dataset.meta_data[
+            self.dataset.meta_data["Split"] == "TEST"
+        ].index.values
+
+        yield train_valid_pediatric_range, test_range, "TRAIN: Pediatric(<=16), TEST: Standard"
+        yield train_valid_full_pediatric_range, test_range, "TRAIN: Standard (resampled: Pediatric), TEST: Standard"
+
+        yield train_valid_adolescent_range, test_range, "TRAIN: Adolescent (>16), TEST: Standard"
+        yield train_valid_full_adolescent_range, test_range, "TRAIN: Standard (resampled: Adolescent), TEST: Standard"

@@ -4,6 +4,9 @@ data/*/*
 models
 models/*
 models/*/*
+assets
+assets/*
+assets/*/*
 wandb
 wandb/*
 wandb/*/*

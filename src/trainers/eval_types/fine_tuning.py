@@ -229,7 +229,7 @@ class EvalFineTuning(BaseEvalType):
             },
         }
         l_loss_val = []
-        best_val_loss = np.inf
+        best_val_score = 0
         best_model_wts = copy.deepcopy(classifier.state_dict())
         for epoch in tqdm(
             range(epoch, train_epochs),
@@ -291,11 +291,11 @@ class EvalFineTuning(BaseEvalType):
             for _score_dict in eval_scores_dict.values():
                 _score_dict["scores"].append(_score_dict["metric"].compute())
             # check if we have new best model
-            if l_loss_val[-1] < best_val_loss:
-                best_val_loss = l_loss_val[-1]
+            if eval_scores_dict["f1"]["scores"][-1] > best_val_score:
+                best_val_score = eval_scores_dict["f1"]["scores"][-1]
                 best_model_wts = copy.deepcopy(classifier.state_dict())
             # check early stopping
-            early_stopping(loss_metric_val.compute())
+            early_stopping(l_loss_val[-1])
             if early_stopping.early_stop:
                 if debug:
                     print("EarlyStopping, evaluation did not decrease.")
@@ -303,7 +303,7 @@ class EvalFineTuning(BaseEvalType):
             # W&B logging if needed
             if log_wandb:
                 log_dict = {
-                    "eval_loss": loss_metric_val.compute(),
+                    "eval_loss": l_loss_val[-1],
                     "epoch": epoch,
                     "step": step,
                 }
