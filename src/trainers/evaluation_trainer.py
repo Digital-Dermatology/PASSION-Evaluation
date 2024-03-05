@@ -8,11 +8,16 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
+from sklearn.metrics import classification_report
 from sklearn.model_selection import StratifiedGroupKFold
 from torchvision import transforms
 from tqdm import tqdm
 
 from src.trainers.eval_types.base import BaseEvalType
+from src.trainers.eval_types.dummy_classifier import (
+    EvalDummyMostFrequent,
+    EvalDummyUniform,
+)
 from src.trainers.eval_types.fine_tuning import EvalFineTuning
 from src.trainers.eval_types.knn import EvalKNN
 from src.trainers.eval_types.lin import EvalLin
@@ -21,6 +26,10 @@ from ssl_library.src.pkg import Embedder, embed_dataset
 from ssl_library.src.utils.utils import fix_random_seeds
 
 eval_type_dict = {
+    # Baselines
+    "dummy_most_frequent": EvalDummyMostFrequent,
+    "dummy_uniform": EvalDummyUniform,
+    # Models
     "fine_tuning": EvalFineTuning,
     "kNN": EvalKNN,
     "lin": EvalLin,
@@ -257,6 +266,41 @@ class EvaluationTrainer(ABC, object):
             # rest of the method specific parameters set with kwargs
             **config,
         )
+        print("*" * 20 + f" {e_type.name()} " + "*" * 20)
+        print(
+            classification_report(
+                score_dict["targets"],
+                score_dict["predictions"],
+                target_names=self.dataset.classes,
+            )
+        )
+
+        eval_df = self.dataset.meta_data.iloc[eval_range].copy()
+        eval_df.reset_index(drop=True, inplace=True)
+        fst_types = eval_df["fitzpatrick"].unique()
+        for fst in fst_types:
+            _df = eval_df[eval_df["fitzpatrick"] == fst]
+            print("~" * 20 + f" Fitzpatrick: {fst} " + "~" * 20)
+            print(
+                classification_report(
+                    score_dict["targets"][_df.index.values],
+                    score_dict["predictions"][_df.index.values],
+                    target_names=self.dataset.classes,
+                )
+            )
+
+        gender_types = eval_df["sex"].unique()
+        for gender in gender_types:
+            _df = eval_df[eval_df["sex"] == gender]
+            print("~" * 20 + f" Gender: {gender} " + "~" * 20)
+            print(
+                classification_report(
+                    score_dict["targets"][_df.index.values],
+                    score_dict["predictions"][_df.index.values],
+                    target_names=self.dataset.classes,
+                )
+            )
+
         # finish the W&B run if needed
         if e_type is EvalFineTuning and self.log_wandb:
             wandb.finish()

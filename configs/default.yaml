@@ -10,6 +10,14 @@ dataset:
         split_file: "PASSION_split.csv"
 
 # these keys define the eval types
+dummy_uniform:
+    n_folds: null
+    eval_test_performance: True
+
+dummy_most_frequent:
+    n_folds: null
+    eval_test_performance: True
+
 fine_tuning:
     n_folds: 5
     eval_test_performance: True
