@@ -264,7 +264,6 @@ class EvalFineTuning(BaseEvalType):
                 if log_wandb:
                     log_dict = {
                         "train_loss": loss.item(),
-                        # TODO: check if this needs a LogSoftmax
                         "train_f1": f1_score_train(pred, target),
                         "learning_rate": optimizer.param_groups[0]["lr"],
                         "weight_decay": optimizer.param_groups[0]["weight_decay"],
@@ -286,7 +285,6 @@ class EvalFineTuning(BaseEvalType):
                     pred = classifier(img)
                     loss = criterion(pred, target)
                 loss_metric_val.update(loss)
-                # TODO: check if this needs a LogSoftmax
                 for _score_dict in eval_scores_dict.values():
                     _score_dict["metric"].update(pred, target)
             l_loss_val.append(loss_metric_val.compute())
@@ -349,12 +347,10 @@ class EvalFineTuning(BaseEvalType):
             target = target.to(device)
             with torch.no_grad():
                 pred = classifier(img)
-            # TODO: LogSoftmax or only Softmax?
-            # pred = nn.LogSoftmax(dim=1)(pred)
-            targets.append(target.cpu().argmax(dim=-1))
+            targets.append(target.cpu())
             predictions.append(pred.cpu())
         targets = torch.concat(targets).cpu().numpy()
-        predictions = torch.concat(predictions).cpu().numpy()
+        predictions = torch.concat(predictions).argmax(dim=-1).cpu().numpy()
         return {
             "score": float(eval_scores_dict["f1"]["scores"][best_epoch] * 100),
             "targets": targets,
