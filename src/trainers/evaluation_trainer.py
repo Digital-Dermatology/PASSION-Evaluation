@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.metrics import classification_report
+from sklearn.metrics import balanced_accuracy_score, classification_report
 from sklearn.model_selection import StratifiedGroupKFold
 from torchvision import transforms
 from tqdm import tqdm
@@ -277,6 +277,11 @@ class EvaluationTrainer(ABC, object):
                     target_names=self.dataset.classes,
                 )
             )
+            b_acc = balanced_accuracy_score(
+                y_true=score_dict["targets"],
+                y_pred=score_dict["predictions"],
+            )
+            print(f"Balanced Acc: {b_acc}")
             # Detailed evaluation per demographic
             eval_df = self.dataset.meta_data.iloc[eval_range].copy()
             eval_df.reset_index(drop=True, inplace=True)
@@ -293,6 +298,11 @@ class EvaluationTrainer(ABC, object):
                         target_names=self.dataset.classes,
                     )
                 )
+                b_acc = balanced_accuracy_score(
+                    score_dict["targets"][_df.index.values],
+                    score_dict["predictions"][_df.index.values],
+                )
+                print(f"Balanced Acc: {b_acc}")
             gender_types = eval_df["sex"].unique()
             for gender in gender_types:
                 _df = eval_df[eval_df["sex"] == gender]
@@ -304,6 +314,11 @@ class EvaluationTrainer(ABC, object):
                         target_names=self.dataset.classes,
                     )
                 )
+                b_acc = balanced_accuracy_score(
+                    score_dict["targets"][_df.index.values],
+                    score_dict["predictions"][_df.index.values],
+                )
+                print(f"Balanced Acc: {b_acc}")
             # Aggregate predictions per sample
             eval_df = eval_df.groupby("subject_id").agg(
                 {"targets": list, "predictions": list}
@@ -322,6 +337,11 @@ class EvaluationTrainer(ABC, object):
                     target_names=self.dataset.classes,
                 )
             )
+            b_acc = balanced_accuracy_score(
+                case_targets,
+                case_predictions,
+            )
+            print(f"Balanced Acc: {b_acc}")
 
         # finish the W&B run if needed
         if e_type is EvalFineTuning and self.log_wandb:
