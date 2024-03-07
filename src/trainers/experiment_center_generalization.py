@@ -56,7 +56,7 @@ class ExperimentCenterGeneralization(EvaluationTrainer):
             ].index.values
             train_valid_resampled_range = (
                 self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
-                .sample(n=len(train_valid_range))
+                .sample(n=len(train_valid_range), random_state=self.seed)
                 .index.values
             )
 

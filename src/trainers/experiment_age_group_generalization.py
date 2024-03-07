@@ -45,7 +45,7 @@ class ExperimentAgeGroupGeneralization(EvaluationTrainer):
         ].index.values
         train_valid_full_pediatric_range = (
             self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
-            .sample(n=len(train_valid_pediatric_range))
+            .sample(n=len(train_valid_pediatric_range), random_state=self.seed)
             .index.values
         )
 
@@ -55,7 +55,7 @@ class ExperimentAgeGroupGeneralization(EvaluationTrainer):
         ].index.values
         train_valid_full_adolescent_range = (
             self.dataset.meta_data[self.dataset.meta_data["Split"] == "TRAIN"]
-            .sample(n=len(train_valid_adolescent_range))
+            .sample(n=len(train_valid_adolescent_range), random_state=self.seed)
             .index.values
         )
 
