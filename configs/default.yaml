@@ -14,6 +14,11 @@ dummy_uniform:
     n_folds: null
     eval_test_performance: True
 
+dummy_constant:
+    n_folds: null
+    eval_test_performance: True
+    constant: 1
+
 dummy_most_frequent:
     n_folds: null
     eval_test_performance: True

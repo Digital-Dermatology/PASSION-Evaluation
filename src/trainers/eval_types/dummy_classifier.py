@@ -74,6 +74,32 @@ class EvalDummyMostFrequent(EvalDummy):
         )
 
 
+class EvalDummyConstant(EvalDummy):
+    @staticmethod
+    def name() -> str:
+        return "DummyClassifier-Constant"
+
+    @classmethod
+    def evaluate(
+        cls,
+        emb_space: np.ndarray,
+        labels: np.ndarray,
+        train_range: np.ndarray,
+        evaluation_range: np.ndarray,
+        constant: int = 1,
+        **kwargs,
+    ) -> dict:
+        return super().evaluate(
+            emb_space=emb_space,
+            labels=labels,
+            train_range=train_range,
+            evaluation_range=evaluation_range,
+            strategy="constant",
+            constant=constant,
+            **kwargs,
+        )
+
+
 class EvalDummyUniform(EvalDummy):
     @staticmethod
     def name() -> str:
