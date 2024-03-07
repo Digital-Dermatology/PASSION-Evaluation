@@ -31,6 +31,7 @@ class EvalDummy(BaseEvalType):
 
         knn = DummyClassifier(
             strategy=kwargs.get("strategy", "most_frequent"),
+            constant=kwargs.get("constant", None),
         )
         knn.fit(X_train, y_train)
         y_pred = knn.predict(X_eval)

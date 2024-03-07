@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.metrics import balanced_accuracy_score, classification_report, f1_score
+from sklearn.metrics import balanced_accuracy_score, classification_report, f1_score, precision_score, recall_score
 from sklearn.model_selection import StratifiedGroupKFold
 from torchvision import transforms
 from tqdm import tqdm
@@ -272,13 +272,6 @@ class EvaluationTrainer(ABC, object):
         if detailed_evaluation:
             # Detailed evaluation
             print("*" * 20 + f" {e_type.name()} " + "*" * 20)
-            print(
-                classification_report(
-                    score_dict["targets"],
-                    score_dict["predictions"],
-                    target_names=self.dataset.classes,
-                )
-            )
             if len(self.dataset.classes) == 2:
                 f1 = f1_score(
                     y_true=score_dict["targets"],
@@ -286,8 +279,29 @@ class EvaluationTrainer(ABC, object):
                     pos_label=1,
                     average="binary",
                 )
-                print(f"Bin. F1: {f1}")
+                precision = precision_score(
+                    y_true=score_dict["targets"],
+                    y_pred=score_dict["predictions"],
+                    pos_label=1,
+                    average="binary",
+                )
+                recall = recall_score(
+                    y_true=score_dict["targets"],
+                    y_pred=score_dict["predictions"],
+                    pos_label=1,
+                    average="binary",
+                )
+                print(f"Bin. F1: {f1:.2f}")
+                print(f"Bin. Precision: {precision:.2f}")
+                print(f"Bin. Recall: {recall:.2f}")
             else:
+                print(
+                    classification_report(
+                        score_dict["targets"],
+                        score_dict["predictions"],
+                        target_names=self.dataset.classes,
+                    )
+                )
                 b_acc = balanced_accuracy_score(
                     y_true=score_dict["targets"],
                     y_pred=score_dict["predictions"],
