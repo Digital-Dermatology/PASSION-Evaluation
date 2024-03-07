@@ -8,7 +8,13 @@ import numpy as np
 import pandas as pd
 import torch
 import wandb
-from sklearn.metrics import balanced_accuracy_score, classification_report, f1_score, precision_score, recall_score
+from sklearn.metrics import (
+    balanced_accuracy_score,
+    classification_report,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from sklearn.model_selection import StratifiedGroupKFold
 from torchvision import transforms
 from tqdm import tqdm
@@ -272,41 +278,10 @@ class EvaluationTrainer(ABC, object):
         if detailed_evaluation:
             # Detailed evaluation
             print("*" * 20 + f" {e_type.name()} " + "*" * 20)
-            if len(self.dataset.classes) == 2:
-                f1 = f1_score(
-                    y_true=score_dict["targets"],
-                    y_pred=score_dict["predictions"],
-                    pos_label=1,
-                    average="binary",
-                )
-                precision = precision_score(
-                    y_true=score_dict["targets"],
-                    y_pred=score_dict["predictions"],
-                    pos_label=1,
-                    average="binary",
-                )
-                recall = recall_score(
-                    y_true=score_dict["targets"],
-                    y_pred=score_dict["predictions"],
-                    pos_label=1,
-                    average="binary",
-                )
-                print(f"Bin. F1: {f1:.2f}")
-                print(f"Bin. Precision: {precision:.2f}")
-                print(f"Bin. Recall: {recall:.2f}")
-            else:
-                print(
-                    classification_report(
-                        score_dict["targets"],
-                        score_dict["predictions"],
-                        target_names=self.dataset.classes,
-                    )
-                )
-                b_acc = balanced_accuracy_score(
-                    y_true=score_dict["targets"],
-                    y_pred=score_dict["predictions"],
-                )
-                print(f"Balanced Acc: {b_acc}")
+            self.print_eval_scores(
+                y_true=score_dict["targets"],
+                y_pred=score_dict["predictions"],
+            )
             # Detailed evaluation per demographic
             eval_df = self.dataset.meta_data.iloc[eval_range].copy()
             eval_df.reset_index(drop=True, inplace=True)
@@ -316,52 +291,18 @@ class EvaluationTrainer(ABC, object):
             for fst in fst_types:
                 _df = eval_df[eval_df["fitzpatrick"] == fst]
                 print("~" * 20 + f" Fitzpatrick: {fst} " + "~" * 20)
-                print(
-                    classification_report(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                        target_names=self.dataset.classes,
-                    )
+                self.print_eval_scores(
+                    y_true=score_dict["targets"][_df.index.values],
+                    y_pred=score_dict["predictions"][_df.index.values],
                 )
-                if len(self.dataset.classes) == 2:
-                    f1 = f1_score(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                        pos_label=1,
-                        average="binary",
-                    )
-                    print(f"Bin. F1: {f1}")
-                else:
-                    b_acc = balanced_accuracy_score(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                    )
-                    print(f"Balanced Acc: {b_acc}")
             gender_types = eval_df["sex"].unique()
             for gender in gender_types:
                 _df = eval_df[eval_df["sex"] == gender]
                 print("~" * 20 + f" Gender: {gender} " + "~" * 20)
-                print(
-                    classification_report(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                        target_names=self.dataset.classes,
-                    )
+                self.print_eval_scores(
+                    y_true=score_dict["targets"][_df.index.values],
+                    y_pred=score_dict["predictions"][_df.index.values],
                 )
-                if len(self.dataset.classes) == 2:
-                    f1 = f1_score(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                        pos_label=1,
-                        average="binary",
-                    )
-                    print(f"Bin. F1: {f1}")
-                else:
-                    b_acc = balanced_accuracy_score(
-                        score_dict["targets"][_df.index.values],
-                        score_dict["predictions"][_df.index.values],
-                    )
-                    print(f"Balanced Acc: {b_acc}")
             # Aggregate predictions per sample
             eval_df = eval_df.groupby("subject_id").agg(
                 {"targets": list, "predictions": list}
@@ -373,28 +314,10 @@ class EvaluationTrainer(ABC, object):
                 eval_df["predictions"].apply(lambda x: max(set(x), key=x.count)).values
             )
             print("*" * 20 + f" {e_type.name()} -> Case Agg. " + "*" * 20)
-            print(
-                classification_report(
-                    case_targets,
-                    case_predictions,
-                    target_names=self.dataset.classes,
-                )
+            self.print_eval_scores(
+                y_true=case_targets,
+                y_pred=case_predictions,
             )
-            if len(self.dataset.classes) == 2:
-                f1 = f1_score(
-                    case_targets,
-                    case_predictions,
-                    pos_label=1,
-                    average="binary",
-                )
-                print(f"Bin. F1: {f1}")
-            else:
-                b_acc = balanced_accuracy_score(
-                    case_targets,
-                    case_predictions,
-                )
-                print(f"Balanced Acc: {b_acc}")
-
         # finish the W&B run if needed
         if e_type is EvalFineTuning and self.log_wandb:
             wandb.finish()
@@ -405,3 +328,40 @@ class EvaluationTrainer(ABC, object):
             e_type.name(),
         ]
         self.df.to_csv(self.df_path, index=False)
+
+    def print_eval_scores(self, y_true: np.ndarray, y_pred: np.ndarray):
+        if len(self.dataset.classes) == 2:
+            f1 = f1_score(
+                y_true=y_true,
+                y_pred=y_pred,
+                pos_label=1,
+                average="binary",
+            )
+            precision = precision_score(
+                y_true=y_true,
+                y_pred=y_pred,
+                pos_label=1,
+                average="binary",
+            )
+            recall = recall_score(
+                y_true=y_true,
+                y_pred=y_pred,
+                pos_label=1,
+                average="binary",
+            )
+            print(f"Bin. F1: {f1:.2f}")
+            print(f"Bin. Precision: {precision:.2f}")
+            print(f"Bin. Recall: {recall:.2f}")
+        else:
+            print(
+                classification_report(
+                    y_true=y_true,
+                    y_pred=y_pred,
+                    target_names=self.dataset.classes,
+                )
+            )
+            b_acc = balanced_accuracy_score(
+                y_true=y_true,
+                y_pred=y_pred,
+            )
+            print(f"Balanced Acc: {b_acc}")
