@@ -6,7 +6,7 @@ log_wandb: True
 # data paths
 dataset:
     passion:
-        path: "data/PASSION/PASSION_collection_2020_2023"
+        path: "data/PASSION"
         split_file: "PASSION_split.csv"
 
 # these keys define the eval types
@@ -29,7 +29,7 @@ fine_tuning:
     # method specific parameters
     train_epochs: 100
     batch_size: *batch_size
-    learning_rate: 0.00001
+    learning_rate: 1.0e-05
     find_optimal_lr: True
     use_lr_scheduler: True
     warmup_epochs: 10

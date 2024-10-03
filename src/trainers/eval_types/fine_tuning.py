@@ -1,7 +1,7 @@
 import copy
 from collections import OrderedDict
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -60,7 +60,7 @@ class EvalFineTuning(BaseEvalType):
         train_range: np.ndarray,
         evaluation_range: np.ndarray,
         dataset: torch.utils.data.Dataset,
-        model: torch.nn.Module,
+        model: Optional[torch.nn.Module],
         model_out_dim: int,
         learning_rate: float,
         batch_size: int,
@@ -77,7 +77,27 @@ class EvalFineTuning(BaseEvalType):
         debug: bool = False,
         **kwargs,
     ) -> dict:
-        model = copy.deepcopy(model)
+        # create the classifier
+        classifier_list = []
+        if model is not None:
+            model = copy.deepcopy(model)
+            classifier_list = [
+                ("backbone", model),
+                ("flatten", torch.nn.Flatten()),
+            ]
+        classifier_list.append(
+            (
+                "fc",
+                LinearClassifier(
+                    model_out_dim,
+                    dataset.n_classes,
+                    large_head=False,
+                    use_bn=use_bn_in_head,
+                    dropout_rate=dropout_in_head,
+                ),
+            ),
+        )
+        classifier = torch.nn.Sequential(OrderedDict(classifier_list))
         # get dataloader for batched compute
         train_loader, eval_loader = cls.get_train_eval_loaders(
             dataset=dataset,
@@ -86,30 +106,14 @@ class EvalFineTuning(BaseEvalType):
             batch_size=batch_size,
             num_workers=num_workers,
         )
-        # create the classifier
-        device = model.device
-        classifier = torch.nn.Sequential(
-            OrderedDict(
-                [
-                    ("backbone", model),
-                    ("flatten", torch.nn.Flatten()),
-                    (
-                        "fc",
-                        LinearClassifier(
-                            model_out_dim,
-                            dataset.n_classes,
-                            large_head=False,
-                            use_bn=use_bn_in_head,
-                            dropout_rate=dropout_in_head,
-                        ),
-                    ),
-                ]
-            )
-        )
+        if model is not None:
+            device = model.device
+        else:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         classifier.to(device)
         # make sure the classifier can get trained
         set_requires_grad(classifier, True)
-        if debug:
+        if debug and model is not None:
             try:
                 summary(classifier, input_size=(1, 3, 224, 224))
             except RuntimeError:
@@ -242,7 +246,8 @@ class EvalFineTuning(BaseEvalType):
             else:
                 # freeze the backbone and let only the classifier be trained
                 set_requires_grad(classifier, True)
-                set_requires_grad(classifier.backbone, False)
+                if hasattr(classifier, "backbone"):
+                    set_requires_grad(classifier.backbone, False)
 
             # training
             classifier.train()

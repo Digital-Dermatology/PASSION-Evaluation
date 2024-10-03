@@ -11,6 +11,14 @@ WORKDIR /workspace
 
 RUN mkdir /assets
 
+# Install system libraries required by OpenCV.
+RUN apt-get update \
+ && apt-get install -y libgl1-mesa-glx libgtk2.0-0 libsm6 libxext6 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Install OpenCV from PyPI.
+RUN pip install opencv-python==4.5.1.48
+
 COPY requirements.txt /assets/requirements.txt
 RUN pip install -r /assets/requirements.txt --upgrade --no-cache-dir
 

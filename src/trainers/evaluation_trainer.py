@@ -102,12 +102,6 @@ class EvaluationTrainer(ABC, object):
                 print(f"Appending results to: {self.df_path}")
                 self.df = pd.read_csv(self.df_path)
 
-        # load the correct model to use as initialization
-        self.model, self.model_out_dim = self.load_model(
-            ckp_path=ckp_path,
-            SSL_model=SSL_model,
-        )
-
         # load the dataset to evaluate on
         self.transform = transforms.Compose(
             [
@@ -126,6 +120,19 @@ class EvaluationTrainer(ABC, object):
             transform=self.transform,
             **data_config[dataset_name.value],
         )
+        if SSL_model == "GoogleDermFound":
+            self.dataset.return_embedding = True
+            self.torch_dataset.dataset.return_embedding = True
+
+        # load the correct model to use as initialization
+        if SSL_model != "GoogleDermFound":
+            self.model, self.model_out_dim = self.load_model(
+                ckp_path=ckp_path,
+                SSL_model=SSL_model,
+            )
+        else:
+            self.model, self.model_out_dim = None, self.dataset[0][0].shape[0]
+
         # check if the cache contains the embeddings already
         cache_file = (
             self.cache_path / f"{dataset_name.value}_{self.experiment_name}.pickle"
@@ -290,7 +297,11 @@ class EvaluationTrainer(ABC, object):
             fst_types = eval_df["fitzpatrick"].unique()
             for fst in fst_types:
                 _df = eval_df[eval_df["fitzpatrick"] == fst]
-                print("~" * 20 + f" Fitzpatrick: {fst} " + "~" * 20)
+                print(
+                    "~" * 20
+                    + f" Fitzpatrick: {fst}, Support: {_df.shape[0]} "
+                    + "~" * 20
+                )
                 self.print_eval_scores(
                     y_true=score_dict["targets"][_df.index.values],
                     y_pred=score_dict["predictions"][_df.index.values],
@@ -298,7 +309,9 @@ class EvaluationTrainer(ABC, object):
             gender_types = eval_df["sex"].unique()
             for gender in gender_types:
                 _df = eval_df[eval_df["sex"] == gender]
-                print("~" * 20 + f" Gender: {gender} " + "~" * 20)
+                print(
+                    "~" * 20 + f" Gender: {gender}, Support: {_df.shape[0]} " + "~" * 20
+                )
                 self.print_eval_scores(
                     y_true=score_dict["targets"][_df.index.values],
                     y_pred=score_dict["predictions"][_df.index.values],
