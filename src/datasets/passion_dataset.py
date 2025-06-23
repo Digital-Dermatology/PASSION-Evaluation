@@ -20,7 +20,7 @@ class PASSIONLabel(Enum):
 
 
 def extract_subject_id(path: str):
-    pattern = r"Files_Matrix_([A-Za-z0-9]+)"
+    pattern = r"([A-Za-z]+[0-9]+)"
     match = re.search(pattern, path)
     if match:
         return str(match.group(1)).strip()
@@ -37,7 +37,7 @@ class PASSIONDataset(GenericImageDataset):
     def __init__(
         self,
         dataset_dir: Union[str, Path] = "data/PASSION/",
-        meta_data_file: Union[str, Path] = "passion_cleaned_final_case_level.csv",
+        meta_data_file: Union[str, Path] = "label.csv",
         split_file: Union[str, Path, None] = None,
         transform=None,
         val_transform=None,
@@ -87,20 +87,23 @@ class PASSIONDataset(GenericImageDataset):
         # get the labels of meta-data `PASSION_Files`
         passion_meta_data = pd.read_csv(meta_data_file, index_col=0)
         self.LBL_COL = self.LBL_COL.replace("lbl_", "")
+
+        passion_meta_data.reset_index(inplace=True)
+
         self.meta_data = self.meta_data.drop(
             columns=[self.LBL_COL, f"lbl_{self.LBL_COL}"], axis=1
         ).merge(passion_meta_data, on=["subject_id"], how="inner")
+
         # fill the `impetig` column
         impetigo_mapper = {0.0: "not impetiginized", 1.0: "impetiginized"}
         self.meta_data["impetig"] = self.meta_data["impetig"].fillna(value=0.0)
         self.meta_data["impetig"] = self.meta_data["impetig"].apply(impetigo_mapper.get)
+
         # get the splitting type
         if split_file is not None:
             split_file = self.check_path(self.dataset_dir / split_file)
             df_split = pd.read_csv(split_file)
-            self.meta_data = self.meta_data.merge(
-                df_split, on="subject_id", how="inner"
-            )
+            self.meta_data = self.meta_data.merge(df_split, on="subject_id", how="left")
             self.meta_data.reset_index(drop=True, inplace=True)
             del df_split
 
@@ -111,7 +114,7 @@ class PASSIONDataset(GenericImageDataset):
         # precomputed embeddings
         self.pre_computed_embeddings = None
         if pre_computed_embeddings_path is not None:
-            import pickle5 as pickle
+            import pickle
 
             with open(pre_computed_embeddings_path, "rb") as file:
                 self.pre_computed_embeddings = pickle.load(file)
