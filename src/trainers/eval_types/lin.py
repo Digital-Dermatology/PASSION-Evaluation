@@ -51,6 +51,8 @@ class EvalLin(BaseEvalType):
         )
         return {
             "score": f1,
+            "filenames": [],
+            "indices": [i for i in range(len(y_eval))],
             "targets": y_eval,
             "predictions": y_pred,
         }

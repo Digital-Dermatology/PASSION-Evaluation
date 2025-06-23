@@ -1,41 +1,53 @@
 # global configs for experiments
 batch_size: &batch_size 64
 seed: 42
-log_wandb: True
+log_wandb: true
+input_size: &input_size 224
+model: "imagenet"
 
-# data paths
 dataset:
-    passion:
-        path: "data/PASSION"
-        split_file: "PASSION_split.csv"
+  passion:
+    path: "data/PASSION"
+    meta_data_file: "label.csv"
+    split_file: "PASSION_split.csv"
+    condition_labels:
+      target_names: ["Eczema", "Fungal", "Others", "Scabies"]
+      labels: [0, 1, 2, 3]
+    impetigo_labels:
+      target_names: ["not impetiginized", "impetiginized"]
+      labels: [0, 1]
 
 # these keys define the eval types
 dummy_uniform:
-    n_folds: null
-    eval_test_performance: True
+  n_folds: null
+  eval_test_performance: true
 
 dummy_constant:
-    n_folds: null
-    eval_test_performance: True
-    constant: 1
+  n_folds: null
+  eval_test_performance: true
+  constant: 1
 
 dummy_most_frequent:
-    n_folds: null
-    eval_test_performance: True
+  n_folds: null
+  eval_test_performance: true
 
 fine_tuning:
-    n_folds: 5
-    eval_test_performance: True
-    # method specific parameters
-    train_epochs: 100
-    batch_size: *batch_size
-    learning_rate: 1.0e-05
-    find_optimal_lr: True
-    use_lr_scheduler: True
-    warmup_epochs: 10
-    early_stopping_patience: 20
-    num_workers: 24
-    debug: True
-    # head parameters
-    use_bn_in_head: True
-    dropout_in_head: 0.4
+  n_folds: 5
+  # n_folds: null
+  eval_test_performance: true
+  detailed_evaluation: true
+  # method specific parameters
+  train_epochs: 100
+  batch_size: *batch_size
+  input_size: *input_size
+  learning_rate: 1.0e-05
+  find_optimal_lr: true
+  use_lr_scheduler: true
+  warmup_epochs: 10
+  early_stopping_patience: 20
+  num_workers: 24
+  train: true
+  debug: true
+  # head parameters
+  use_bn_in_head: true
+  dropout_in_head: 0.4

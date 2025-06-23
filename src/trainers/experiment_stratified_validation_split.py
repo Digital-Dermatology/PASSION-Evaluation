@@ -7,7 +7,7 @@ from src.datasets.helper import DatasetName
 from src.trainers.evaluation_trainer import EvaluationTrainer
 
 
-class ExperimentStandardSplit(EvaluationTrainer):
+class ExperimentStratifiedValidationSplit(EvaluationTrainer):
     def __init__(
         self,
         dataset_name: DatasetName,
@@ -39,15 +39,15 @@ class ExperimentStandardSplit(EvaluationTrainer):
     @property
     def experiment_name(self) -> str:
         if self.add_info is not None:
-            return f"experiment_standard_split_{self.add_info}"
+            return f"experiment_stratified_validation_split_{self.add_info}"
         else:
-            return "experiment_standard_split"
+            return "experiment_stratified_validation_split"
 
     def split_dataframe_iterator(self) -> Iterator[Tuple[np.ndarray, np.ndarray, str]]:
         train_valid_range = self.dataset.meta_data[
             self.dataset.meta_data["Split"] == "TRAIN"
         ].index.values
-        test_range = self.dataset.meta_data[
-            self.dataset.meta_data["Split"] == "TEST"
+        validation_range = self.dataset.meta_data[
+            self.dataset.meta_data["Split"] == "VALIDATION"
         ].index.values
-        yield train_valid_range, test_range, "Standard_TRAIN_TEST"
+        yield train_valid_range, validation_range, f"Stratified_TRAIN_VALIDATION_{self.add_info}"

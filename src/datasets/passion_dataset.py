@@ -6,6 +6,7 @@ from typing import Optional, Sequence, Union
 import numpy as np
 import pandas as pd
 import torch
+from loguru import logger
 from PIL import Image, ImageFile
 
 from src.datasets.generic_image_dataset import GenericImageDataset
@@ -20,7 +21,7 @@ class PASSIONLabel(Enum):
 
 
 def extract_subject_id(path: str):
-    pattern = r"Files_Matrix_([A-Za-z0-9]+)"
+    pattern = r"([A-Za-z]+[0-9]+)"
     match = re.search(pattern, path)
     if match:
         return str(match.group(1)).strip()
@@ -37,12 +38,11 @@ class PASSIONDataset(GenericImageDataset):
     def __init__(
         self,
         dataset_dir: Union[str, Path] = "data/PASSION/",
-        meta_data_file: Union[str, Path] = "passion_cleaned_final_case_level.csv",
+        meta_data_file: Union[str, Path] = "label.csv",
         split_file: Union[str, Path, None] = None,
         transform=None,
         val_transform=None,
         label_col: Union[PASSIONLabel, str] = PASSIONLabel.CONDITIONS,
-        return_path: bool = False,
         image_extensions: Sequence = (
             "*.jpeg",
             "*.jpg",
@@ -68,8 +68,6 @@ class PASSIONDataset(GenericImageDataset):
             Optional transform to be applied to the images.
         val_transform : Union[callable, optional]
             Optional transform to be applied to the images when in validation mode.
-        return_path : bool
-            If the path of the image should be returned or not.
         """
         if isinstance(label_col, str):
             label_col = PASSIONLabel[label_col]
@@ -78,7 +76,6 @@ class PASSIONDataset(GenericImageDataset):
             dataset_dir=dataset_dir,
             transform=transform,
             val_transform=val_transform,
-            return_path=return_path,
             image_extensions=image_extensions,
             **kwargs,
         )
@@ -98,20 +95,18 @@ class PASSIONDataset(GenericImageDataset):
         if split_file is not None:
             split_file = self.check_path(self.dataset_dir / split_file)
             df_split = pd.read_csv(split_file)
-            self.meta_data = self.meta_data.merge(
-                df_split, on="subject_id", how="inner"
-            )
+            self.meta_data = self.meta_data.merge(df_split, on="subject_id", how="left")
             self.meta_data.reset_index(drop=True, inplace=True)
             del df_split
 
         self.meta_data.reset_index(drop=True, inplace=True)
-        int_lbl, lbl_mapping = pd.factorize(self.meta_data[self.LBL_COL])
+        int_lbl, lbl_mapping = pd.factorize(self.meta_data[self.LBL_COL], sort=True)
         self.LBL_COL = f"lbl_{self.LBL_COL}"
         self.meta_data[self.LBL_COL] = int_lbl
         # precomputed embeddings
         self.pre_computed_embeddings = None
         if pre_computed_embeddings_path is not None:
-            import pickle5 as pickle
+            import pickle
 
             with open(pre_computed_embeddings_path, "rb") as file:
                 self.pre_computed_embeddings = pickle.load(file)
@@ -126,7 +121,6 @@ class PASSIONDataset(GenericImageDataset):
             self.meta_data = self.meta_data[self.meta_data["embedding"].notna()]
             self.meta_data.reset_index(drop=True, inplace=True)
 
-        self.return_path = return_path
         self.return_embedding = return_embedding
         self.classes = list(lbl_mapping)
         self.n_classes = len(self.classes)
@@ -140,10 +134,9 @@ class PASSIONDataset(GenericImageDataset):
         if self.return_embedding:
             embedding = self.meta_data.loc[self.meta_data.index[index], "embedding"]
             embedding = torch.Tensor(embedding)
-            if self.return_path:
-                return embedding, img_name, int(diagnosis)
-            else:
-                return embedding, int(diagnosis)
+
+            logger.debug(f"returned embedding")
+            return embedding, img_name, int(diagnosis)
 
         image = Image.open(img_name)
         image = image.convert("RGB")
@@ -152,7 +145,6 @@ class PASSIONDataset(GenericImageDataset):
         elif self.val_transform and not self.training:
             image = self.val_transform(image)
 
-        if self.return_path:
-            return image, img_name, int(diagnosis)
-        else:
+        if self.training:
             return image, int(diagnosis)
+        return image, img_name, int(diagnosis), index

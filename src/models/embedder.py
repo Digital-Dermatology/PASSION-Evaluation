@@ -60,6 +60,7 @@ class Embedder:
         model_dict = {
             "dino": f"{Embedder.base_path}/dino/checkpoint-epoch100.pth",
             "imagenet": "",
+            "imagenet_tiny": "",
             "imagenet_vit_tiny": "",
             "imagenet_vit_small": "",
         }
@@ -74,6 +75,7 @@ class Embedder:
         model_dict_func = {
             "dino": Embedder.load_dino,
             "imagenet": Embedder.load_resnet50_imagenet,
+            "imagenet_tiny": Embedder.load_resnet18_imagenet,
             "imagenet_vit_tiny": partial(
                 Embedder.load_vit_imagenet,
                 hf_name="WinKawaks/vit-tiny-patch16-224",
@@ -109,6 +111,28 @@ class Embedder:
             info.model_type = "ResNet"
             info.ssl_type = "ImageNet"
             info.out_dim = 2048
+            return model, info, {}
+        return model
+
+    @staticmethod
+    def load_resnet18_imagenet(
+        ckp_path: str,
+        return_info: bool = False,
+        debug: bool = False,
+        **kwargs,
+    ) -> torch.nn.Module:
+        # load a dummy model
+        model = models.resnet18(weights="IMAGENET1K_V1", progress=debug)
+        # ResNet Model without last layer
+        model = torch.nn.Sequential(*list(model.children())[:-1])
+        model = Wrapper(model=model)
+        set_requires_grad(model, True)
+        if return_info:
+            # information about the model
+            info = SimpleNamespace()
+            info.model_type = "ResNet"
+            info.ssl_type = "ImageNet"
+            info.out_dim = 512
             return model, info, {}
         return model
 

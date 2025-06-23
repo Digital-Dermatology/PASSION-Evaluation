@@ -21,7 +21,6 @@ class GenericImageDataset(BaseDataset):
         dataset_dir: Union[str, Path] = "data/dataset/",
         transform=None,
         val_transform=None,
-        return_path: bool = False,
         image_extensions: Sequence = ("*.png", "*.jpg", "*.JPEG"),
         **kwargs,
     ):
@@ -38,8 +37,6 @@ class GenericImageDataset(BaseDataset):
             Optional transform to be applied to the images.
         val_transform : Union[callable, optional]
             Optional transform to be applied to the images when in validation mode.
-        return_path : bool
-            If the path of the image should be returned or not.
         """
         super().__init__(transform=transform, val_transform=val_transform, **kwargs)
         # check if the dataset path exists
@@ -69,14 +66,14 @@ class GenericImageDataset(BaseDataset):
             lambda x: Path(x).parents[0].name
         )
         self.meta_data.reset_index(drop=True, inplace=True)
-        int_lbl, lbl_mapping = pd.factorize(self.meta_data[self.LBL_COL])
+        int_lbl, lbl_mapping = pd.factorize(self.meta_data[self.LBL_COL], sort=True)
         self.LBL_COL = f"lbl_{self.LBL_COL}"
         self.meta_data[self.LBL_COL] = int_lbl
 
         # global configs
-        self.return_path = return_path
         self.classes = list(lbl_mapping)
         self.n_classes = len(self.classes)
+        self.training = False
 
     def __len__(self):
         return len(self.meta_data)
@@ -94,7 +91,6 @@ class GenericImageDataset(BaseDataset):
             image = self.val_transform(image)
 
         diagnosis = self.meta_data.loc[self.meta_data.index[index], self.LBL_COL]
-        if self.return_path:
-            return image, img_name, int(diagnosis)
-        else:
+        if self.training:
             return image, int(diagnosis)
+        return image, img_name, int(diagnosis), index
